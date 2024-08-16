@@ -438,7 +438,7 @@ class DirectoryTreeApp(App):
                     sample = (islice(r, len(sample_header)) for r in islice(rows, self.data_first_n))
 
                     self.data_content.add_rows(sample)
-                    self.file_content.text = 'Columns:\n- ' + '\n - '.join(header)
+                    self.file_content.text = 'Columns:\n- ' + '\n- '.join(header)
 
             elif message.path.suffix == '. parquet':
                 with message.path.open('rb') as f:
@@ -457,7 +457,7 @@ class DirectoryTreeApp(App):
                             for i in range(num_rows)
                         )
                         self.data_content.add_rows(sample)
-                        self.file_content.text = 'Columns:\n- ' + '\n - '.join(header)
+                        self.file_content.text = 'Columns:\n- ' + '\n- '.join(header)
 
             # 1000 lines
             elif message.path.suffix in self.language_map:
