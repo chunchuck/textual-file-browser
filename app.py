@@ -395,16 +395,16 @@ class DirectoryTreeApp(App):
     def _update_meta(self, path: UPath):
         filestat = path.stat()
         render = self._format_path(path)
-        updated = datetime.fromtimestamp(filestat.st_mtime).strftime('%V-%m-%d %H: %M:%S')
+        updated = datetime.fromtimestamp(filestat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
 
         if path.is_dir():
             metadata = f"""- Modified Time: {updated}
--Path: {render}"""
+- Path: {render}"""
 
         else:
             metadata = f"""- Modified Time: {updated}
--Size: {filestat.st_size:,}
--Path: {render}"""
+- Size: {filestat.st_size:,}
+- Path: {render}"""
 
         self.metadata.text = metadata
 
