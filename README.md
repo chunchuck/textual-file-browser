@@ -5,8 +5,8 @@ File browser in terminal built with [Textual](https://github.com/Textualize/text
 
 ### Install
 ```
-python -m venv tbf
-source ./tbf/bin/activate
+python -m venv tfb
+source ./tfb/bin/activate
 python -m pip install -r requirements.txt
 ```
 ### Run
