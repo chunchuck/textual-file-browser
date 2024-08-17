@@ -1,0 +1,4 @@
+textual
+pyarrow
+pandas
+universal-pathlib
