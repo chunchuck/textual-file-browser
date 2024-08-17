@@ -15,8 +15,8 @@ import asyncio
 
 class InputWithHistory(Input):
     BINDINGS = [
-        ("up", "cmd_history(-1) "),
-        ("down", "cmd_history(1) "),
+        ("up", "cmd_history(-1)"),
+        ("down", "cmd_history(1)"),
         ('escape', 'defocus', 'Stop Typing')
     ]
     hsize = 20
