@@ -19,7 +19,9 @@ python app.py
 (q) Drive presets select
 (b) File browser window focus
 (r) Refresh selected folder
-(t) Start typing command, (escape) Stop typing command
+
+(:) Start typing command, (escape) Stop typing command
+(/) Start searching, (escape) Stop searching
 
 (f) File preview window focus
 (d) Data preview window focus
