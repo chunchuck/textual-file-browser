@@ -141,8 +141,8 @@ class DirectoryTreeApp(App):
     BINDINGS = [
 
         ('r', 'refresh', 'Refresh'),
-        ('t', 'focus("cmd-input")'),
 
+        (':', 'focus("cmd-input")'),
         ('/', 'focus("search")'),
         ('b', 'focus("browser")'),
         ('f', 'focus("file-content")'),
@@ -608,8 +608,9 @@ class DirectoryTreeApp(App):
                     l.node.refresh()
 
                 self.log_output.write_line(f'Search {s} found {num_found}')
-                self.directory_tree.scroll_to_node(first)
-                self.directory_tree.move_cursor(first)
+                if first:
+                    self.directory_tree.scroll_to_node(first)
+                    self.directory_tree.move_cursor(first)
 
             else:
                 self._search_item += 1
@@ -625,8 +626,9 @@ class DirectoryTreeApp(App):
                             self.directory_tree.move_cursor(l.node)
                             return
 
-                self.directory_tree.scroll_to_node(first)
-                self.directory_tree.move_cursor(first)
+                if first:
+                    self.directory_tree.scroll_to_node(first)
+                    self.directory_tree.move_cursor(first)
                 self._search_item = 0
 
         else:
