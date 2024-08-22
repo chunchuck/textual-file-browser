@@ -34,4 +34,4 @@ python app.py
 (w) Log window focus
 ```
 ### Support Filesystems (in theory)
-See [universal-pathlib](https://github.com/fsspec/universal_pathlib?tab=readme-ov-file#currently-supported-filesystems-and-protocols). You might have to install extra libraries.
+See [universal-pathlib](https://github.com/fsspec/universal_pathlib?tab=readme-ov-file#currently-supported-filesystems-and-protocols). You might have to install extra libraries. Edit `DirectoryTreeApp.DRIVES` to add more filesystems.
