@@ -1,10 +1,9 @@
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, VerticalScroll, Vertical, HorizontalScroll
-from textual.widgets import DirectoryTree, ClassicFooter, Static, TextArea, DataTable, Select, Button, Log, Input
+from textual.containers import Horizontal, Vertical, HorizontalScroll
+from textual.widgets import DirectoryTree, Static, TextArea, DataTable, Select, Button, Log, Input
 
 from upath import UPath
-
 from pyarrow.parquet import ParquetFile
 from rich.text import Text, Style
 import csv
@@ -17,14 +16,19 @@ class InputWithHistory(Input):
     BINDINGS = [
         ("up", "cmd_history(-1)"),
         ("down", "cmd_history(1)"),
-        ('escape', 'defocus', 'Stop Typing')
+        ('escape', 'defocus')
     ]
-    hsize = 20
+    DEFAULT_CSS = """
+    Input>.input--placeholder, Input>.input--suggestion {
+        color: #d6d6d6;
+    }"""
+
+    history_size = 20
     history = []
     step = None
 
     def action_defocus(self):
-        self.blur()
+        self.app.directory_tree.focus()
 
     def action_cmd_history(self, direction: int):
         """
@@ -53,38 +57,74 @@ class InputWithHistory(Input):
             self.history.pop()
 
         self.history.append(cmd)
-        self.history = self.history[-self.hsize:]
+        self.history = self.history[-self.history_size:]
 
 
 class InputSearch(Input):
     BINDINGS = [
-        ('escape', 'defocus')
+        ('escape', 'stop_search'),
+        ('up', 'search(-1)'),
+        ('down', 'search(1)')
     ]
+    DEFAULT_CSS = """
+    Input>.input--placeholder, Input>.input--suggestion {
+        color: #d6d6d6;
+    }"""
 
-    def action_defocus(self):
-        self.app.directory_tree.searching = None
-        self.app.search_str = None
+    def action_stop_search(self):
         self.clear()
-
-        for l in self.app.directory_tree._tree_lines:
-            l.node.refresh()
-
+        self.app.directory_tree.file_filter = None
+        self.app.directory_tree.refresh_children()
+        self.app.directory_tree.refresh_searched()
         self.app.directory_tree.focus()
+
+    def action_search(self, direction):
+        self.app.search_files_and_scroll(self.value, scroll_dir=direction)
 
 
 class UniversalDirectoryTree(DirectoryTree):
     PATH = UPath
     not_found = Style(color='grey53')
-    searching = None
+
+    file_filter = None
+    found_node_idx: list = None
+    found_node_cursor = 0
 
     def render_label(
         self, node, base_style, style
     ):
         t = super().render_label(node, base_style, style)
-        if self.searching and not (self.searching in node.data.path.parts[-1]):
+        if self.file_filter and self.file_filter not in node.data.path.parts[-1]:
             return Text.assemble(t, style=self.not_found)
         else:
             return t
+
+    def refresh_children(self):
+        for line in self._tree_lines:
+            line.node.refresh()
+
+    def refresh_searched(self):
+        self.found_node_idx = []
+        if self.file_filter:
+            for i, line in enumerate(self._tree_lines):
+                if self.file_filter in line.node.data.path.parts[-1]:
+                    self.found_node_idx.append(i)
+
+        if self.found_node_cursor > len(self.found_node_idx):
+            self.found_node_cursor = 0
+
+    def scroll_next(self, steps: int):
+        if self.found_node_idx:
+            self.found_node_cursor = (
+                self.found_node_cursor + steps
+            ) % len(self.found_node_idx)
+
+            node = self._tree_lines[self.found_node_idx[
+                self.found_node_cursor
+            ]].node
+
+            self.scroll_to_node(node, animate=False)
+            self.move_cursor(node)
 
 
 class CmdButton(Button):
@@ -141,14 +181,19 @@ class DirectoryTreeApp(App):
     BINDINGS = [
 
         ('r', 'refresh', 'Refresh'),
-
         (':', 'focus("cmd-input")'),
         ('/', 'focus("search")'),
+
+        ('c', 'cd'),
+        ('escape', 'cd_parent'),
+
         ('b', 'focus("browser")'),
         ('f', 'focus("file-content")'),
         ('d', 'focus("data-content")'),
         ('w', 'focus("log-output")'),
-        ('q', 'focus("drive-select")')
+        ('q', 'show_overlay'),
+        ('f1', 'paste_path')
+
     ]
     CSS = """
     #metadata {
@@ -216,7 +261,8 @@ class DirectoryTreeApp(App):
         '.md': 'markdown',
         '.py': 'python',
         '.json': 'json',
-        '.sh': 'bash'
+        '.sh': 'bash',
+        '.sql': 'sql'
     }
 
     cmd_map_local = {
@@ -227,8 +273,19 @@ class DirectoryTreeApp(App):
         'mv':  'mv "{path}" ?',
     }
 
-    def action_focus(self, dom_id):
-        self.query_one(f"#{dom_id}").focus()
+    # Actions =======================================================
+    def action_show_overlay(self):
+        self.query_one('#drive-select').action_show_overlay()
+
+    async def action_cd(self):
+        await self.cd(self.selected_path)
+
+    async def action_cd_parent(self):
+        if self.directory_tree.root.data.path.parent !=self.directory_tree.root.data.path:
+            await self.cd(self.directory_tree.root.data.path.parent)
+
+    # def action_focus(self, dom_id):
+    #     self.query_one(f"#{dom_id}").focus()
 
     def action_activate_cmd(self, number):
         self.query_one(f'#cmd-{number}', CmdButton).action_press()
@@ -242,6 +299,7 @@ class DirectoryTreeApp(App):
             else:
                 self.file_not_found()
                 self.refresh_valid_parent(self.selected_node)
+    # Actions =======================================================
 
     def __init__(self, drive: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -267,16 +325,20 @@ class DirectoryTreeApp(App):
         )
 
         self.directory_tree = UniversalDirectoryTree(id='browser', path=init_root, classes='small-scroll')
-        self.cmd_input = InputWithHistory(id='cmd-input', classes='single-line')
-        self.search = InputSearch(id='search', classes='single-line', placeholder='Search')
+        self.cmd_input = InputWithHistory(
+            id='cmd-input', classes='single-line', placeholder='(:) Command (up) (down) (esc) x'
+        )
+        self.search = InputSearch(id='search', classes='single-line',
+                                  placeholder='(/) Search (up) (down) (esc) x')
         self.log_output = Log(id='log-output', classes=' small-scroll')
 
+        # misc
         self.data_first_n = 20
         self.data_col_first_n = 50
         self.drive_select_first_load = True
 
         self.cmd_timeout = 20
-        self._search_item = 0
+        self.just_changed_dir = True
 
         for i, cmd in enumerate(self.cmd_map_local):
             self.bind(str(i + 1), f"activate_cmd({i + 1})")
@@ -316,6 +378,7 @@ class DirectoryTreeApp(App):
                 allow_blank=False,
                 value=self.drive
             ),
+            Static(' <-esc c->', classes='bread-sep'),
             self.address_bar,
             classes='single-line'
         )
@@ -324,7 +387,7 @@ class DirectoryTreeApp(App):
                 self.search,
                 self.directory_tree,
                 Vertical(
-                    Static(' (w) Logs', classes='minor-title'),
+                    Static(' (w) Logs v (b) Browder ^', classes='minor-title'),
                     Horizontal(
                         *[CmdButton(cmd, cmd, i + 1) for i, cmd in enumerate(self.cmd_map_local)],
                         classes='single-line'
@@ -346,7 +409,6 @@ class DirectoryTreeApp(App):
         )
 
         yield self.cmd_input
-        yield ClassicFooter()
 
     def clear_previews(self):
         self.data_content.clear(columns=True)
@@ -356,62 +418,45 @@ class DirectoryTreeApp(App):
     def file_not_found(self, m=''):
         self.notify(m, title='File/Folder not found', severity='warning')
 
-    def refresh_valid_parent(self, node):
+    async def refresh_valid_parent(self, node):
         # node.data. path
         # node. parent
         # reload node
-        self.directory_tree.searching = None
-        self.search.clear()
         self.selected_node = None
         while node and not node.data.path.exists():
             node = node.parent
 
         if node:
+            p = self.directory_tree.reload_node(node)
             self.selected_path = node.data.path
-            self.directory_tree.reload_node(node)
-
-        else:  # reset tree
+            self._update_meta(self.selected_path)
+            self.populate_address_bar()
+            await p
+        else:
             root = UPath(self.drive).expanduser().resolve()
-            self.selected_path = root
-            self.clear_previews()
-            self.directory_tree.path = root
-            self.directory_tree.reload()
-
-        self._update_meta(self.selected_path)
-        self.populate_address_bar()
+            await self.cd(root)
 
     @on(DirectoryTree.DirectorySelected)
-    def handle_dir_selected(self, message: DirectoryTree.DirectorySelected) -> None:
+    async def handle_dir_selected(self, message: DirectoryTree.DirectorySelected) -> None:
+
         self.clear_previews()
         if message.path.exists():
             self.selected_node = message.node
             self.selected_path = message.path
             self._update_meta(self.selected_path)
-
             self.populate_address_bar()
+
         else:
+            p = self.refresh_valid_parent(message.node)
             self.file_not_found()
-            self.refresh_valid_parent(message.node)
+            await p
+
+        self.just_changed_dir = True
 
     @on(BreadButton.Pressed, ".bread")
-    def handle_bread_button_pressed(self, event: Button.Pressed):
-        self.directory_tree.searching = None
-        self.search.clear()
-
-        new_root = self._format_path(event.button.path)
-        new_root = UPath(new_root)
-        if not new_root.exists():
-            self.file_not_found()
-
-            while new_root != new_root.parent and not new_root.exists():
-                new_root = new_root.parent
-
-        self.directory_tree.path = new_root
-        self.directory_tree.reload()
-        self.selected_path = new_root
-        self.selected_node = None
-        self._update_meta(self.selected_path)
-        self.populate_address_bar()
+    async def handle_bread_button_pressed(self, event: Button.Pressed):
+        await self.cd(event.button.path)
+        self.directory_tree.focus()
 
     def _format_path(self, path: UPath):
         render = str(path)
@@ -434,15 +479,11 @@ class DirectoryTreeApp(App):
         self.metadata.text = metadata
 
     @on(DirectoryTree.FileSelected)
-    def handle_file_selected(self, message: DirectoryTree.FileSelected) -> None:
+    async def handle_file_selected(self, message: DirectoryTree.FileSelected) -> None:
         if not message.path.exists():
             self.file_not_found()
-            self.refresh_valid_parent(message.node)
+            await self.refresh_valid_parent(message.node)
             return
-
-        if self.selected_path == message.path:
-            if self.selected_path.stat().st_mtime >= message.path.stat().st_mtime:
-                return
 
         self.selected_node = message.node
         self.selected_path = message.path
@@ -499,27 +540,42 @@ class DirectoryTreeApp(App):
         except Exception as e:
             self.log_output.write_line(str(e))
 
+    async def cd(self, path: UPath):
+        if not path.is_dir():
+            path = path.parent
+
+        if not path.exists():
+            self.file_not_found()
+            while path != path.parent and not path.exists():
+                path = path.parent
+
+        self.directory_tree.path = path
+        p = self.directory_tree.reload()
+
+        self.selected_path = path
+        self.selected_node = None
+
+        self._update_meta(self.selected_path)
+        self.clear_previews()
+        self.populate_address_bar()
+
+        self.just_changed_dir = True
+
+        await p
+
     @on(Select.Changed, '#drive-select')
     async def drive_select_changed(self, event: Select.Changed) -> None:
 
         if not self.drive_select_first_load:
-            self.directory_tree.searching = None
-            self.search.clear()
 
             new_root = UPath(event.value).expanduser().resolve()
-            self.selected_path = new_root
-            self.selected_node = None
             self.drive = event.value
-
-            self._update_meta(self.selected_path)
-            self.clear_previews()
-            self.directory_tree.path = new_root
-            await self.directory_tree.reload()
-            self.populate_address_bar()
+            await self.cd(new_root)
 
         else:
             self.drive_select_first_load = False
 
+        self.just_changed_dir = True
         self.directory_tree.focus()
 
     @on(CmdButton.Pressed, '.cmd')
@@ -591,50 +647,32 @@ class DirectoryTreeApp(App):
         )
 
     @on(Input.Submitted, '#search')
-    def search(self, event: Input.Submitted) -> None:
-        s = event.value
+    async def search(self, event: Input.Submitted) -> None:
+        self.search_files_and_scroll(event.value)
 
-        if s:
-            if self.directory_tree.searching != s:
-                self.directory_tree.searching = s
+    def search_files_and_scroll(self, search_term: str, scroll_dir=1):
+        if search_term:
+            if self.directory_tree.file_filter != search_term:
+                self.directory_tree.file_filter = search_term
+                self.directory_tree.refresh_children()
+                self.directory_tree.refresh_searched()
+                self.directory_tree.scroll_next(0)
 
-                first = None
-                num_found = 0
-                for l in self.directory_tree._tree_lines:
-                    if s in l.node.data.path.parts[-1]:
-                        num_found += 1
-                        if not first:
-                            first = l.node
-                    l.node.refresh()
-
-                self.log_output.write_line(f'Search {s} found {num_found}')
-                if first:
-                    self.directory_tree.scroll_to_node(first)
-                    self.directory_tree.move_cursor(first)
+                num_found = len(self.directory_tree.found_node_idx)
+                self.log_output.write_line(f'Search {search_term} found {num_found}')
 
             else:
-                self._search_item += 1
-                i = -1
-                first = None
-                for l in self.directory_tree._tree_lines:
-                    if s in l.node.data.path.parts[-1]:
-                        if not first:
-                            first = l.node
-                        i += 1
-                        if i == self._search_item:
-                            self.directory_tree.scroll_to_node(l.node)
-                            self.directory_tree.move_cursor(l.node)
-                            return
+                if self.just_changed_dir:
+                    self.directory_tree.refresh_searched()
+                    self.just_changed_dir = False
 
-                if first:
-                    self.directory_tree.scroll_to_node(first)
-                    self.directory_tree.move_cursor(first)
-                self._search_item = 0
+                self.directory_tree.scroll_next(scroll_dir)
 
         else:
-            self.directory_tree.searching = None
-            for l in self.directory_tree._tree_lines:
-                l.node.refresh()
+            self.directory_tree.file_filter = None
+            self.directory_tree.refresh_children()
+            self.directory_tree.refresh_searched()
+            self.directory_tree.focus()
 
 
 if __name__ == '__main__':

@@ -15,16 +15,20 @@ python app.py
 ```
 ### Shortcuts
 ```
-(escape) Quit
+(ctrl+c) Quit
 (q) Drive presets select
-(b) File browser window focus
+
 (r) Refresh selected folder
 
 (:) Start typing command, (escape) Stop typing command
+(1 - 9) Paste command presets
 (/) Start searching, (escape) Stop searching
 
+(c) zoom into selected folder
+(escape) zoom out to selected's parent folder
+
+(b) File browser window focus
 (f) File preview window focus
 (d) Data preview window focus
-(1 - 9) Paste command presets
 (w) Log window focus
 ```
