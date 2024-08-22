@@ -22,6 +22,7 @@ python app.py
 
 (:) Start typing command, (escape) Stop typing command
 (1 - 9) Paste command presets
+(f1) Paste selected path to command
 (/) Start searching, (escape) Stop searching
 
 (c) zoom into selected folder

@@ -281,11 +281,11 @@ class DirectoryTreeApp(App):
         await self.cd(self.selected_path)
 
     async def action_cd_parent(self):
-        if self.directory_tree.root.data.path.parent !=self.directory_tree.root.data.path:
+        if self.directory_tree.root.data.path.parent != self.directory_tree.root.data.path:
             await self.cd(self.directory_tree.root.data.path.parent)
 
-    # def action_focus(self, dom_id):
-    #     self.query_one(f"#{dom_id}").focus()
+    def action_paste_path(self):
+        self.cmd_input.insert_text_at_cursor('"' + str(self.selected_path) + '"')
 
     def action_activate_cmd(self, number):
         self.query_one(f'#cmd-{number}', CmdButton).action_press()
