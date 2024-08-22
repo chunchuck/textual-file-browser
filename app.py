@@ -252,8 +252,7 @@ class DirectoryTreeApp(App):
     """
     DRIVES = {
         # name: uri
-        'root': '/',
-        'home': '~/'
+        'root': 'file:///'
     }
     language_map = {
         '.yml': 'yaml',
@@ -305,11 +304,11 @@ class DirectoryTreeApp(App):
         super().__init__(*args, **kwargs)
 
         if drive not in self.DRIVES.items():
-            self.drive: str = '~/'
+            self.drive: str = 'file:///'
         else:
             self.drive: str = drive
 
-        init_root: UPath = UPath(self.drive).expanduser().resolve()
+        init_root: UPath = UPath(self.drive).resolve()
         self.selected_path: UPath = init_root
         self.selected_node = None
 
@@ -433,7 +432,7 @@ class DirectoryTreeApp(App):
             self.populate_address_bar()
             await p
         else:
-            root = UPath(self.drive).expanduser().resolve()
+            root = UPath(self.drive).resolve()
             await self.cd(root)
 
     @on(DirectoryTree.DirectorySelected)
@@ -460,6 +459,8 @@ class DirectoryTreeApp(App):
 
     def _format_path(self, path: UPath):
         render = str(path)
+        if path.protocol == 'file':
+            render = render.replace(f'file://', '')
         return render
 
     def _update_meta(self, path: UPath):
@@ -568,7 +569,7 @@ class DirectoryTreeApp(App):
 
         if not self.drive_select_first_load:
 
-            new_root = UPath(event.value).expanduser().resolve()
+            new_root = UPath(event.value).resolve()
             self.drive = event.value
             await self.cd(new_root)
 
