@@ -18,15 +18,16 @@ python app.py
 (ctrl+c) Quit
 (q) Drive presets select
 
+(enter) select folder / file
 (r) Refresh selected folder
 
 (:) Start typing command, (escape) Stop typing command
 (1 - 9) Paste command presets
-(f1) Paste selected path to command
-(/) Start searching, (escape) Stop searching
+(f1) Paste highlighted folder/file path to command
+(/) Start searching, (escape) Stop searching, (up)(down) next / previous match
 
-(c) zoom into selected folder
-(escape) zoom out to selected's parent folder
+(c) go into highlighted folder
+(escape) go out to parent folder
 
 (b) File browser window focus
 (f) File preview window focus

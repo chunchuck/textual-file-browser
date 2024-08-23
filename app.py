@@ -72,11 +72,11 @@ class InputSearch(Input):
     }"""
 
     def action_stop_search(self):
-        self.clear()
         self.app.directory_tree.file_filter = None
-        self.app.directory_tree.refresh_children()
-        self.app.directory_tree.refresh_searched()
         self.app.directory_tree.focus()
+        # self.app.directory_tree.refresh_children()
+        self.app.directory_tree.refresh_searched()
+        self.clear()
 
     def action_search(self, direction):
         self.app.search_files_and_scroll(self.value, scroll_dir=direction)
@@ -277,14 +277,23 @@ class DirectoryTreeApp(App):
         self.query_one('#drive-select').action_show_overlay()
 
     async def action_cd(self):
-        await self.cd(self.selected_path)
+        node = self.directory_tree.get_node_at_line(
+            self.directory_tree.cursor_line
+        )
+        if node.data.path.is_dir():
+            await self.cd(node.data.path)
 
     async def action_cd_parent(self):
         if self.directory_tree.root.data.path.parent != self.directory_tree.root.data.path:
             await self.cd(self.directory_tree.root.data.path.parent)
 
     def action_paste_path(self):
-        self.cmd_input.insert_text_at_cursor('"' + str(self.selected_path) + '"')
+        node = self.directory_tree.get_node_at_line(
+            self.directory_tree.cursor_line
+        )
+        if not self.cmd_input.disabled:
+            self.cmd_input.insert_text_at_cursor('"' + str(node.data.path) + '"')
+            self.cmd_input.focus()
 
     def action_activate_cmd(self, number):
         self.query_one(f'#cmd-{number}', CmdButton).action_press()
@@ -377,7 +386,7 @@ class DirectoryTreeApp(App):
                 allow_blank=False,
                 value=self.drive
             ),
-            Static(' <-esc c->', classes='bread-sep'),
+            Static(' <|esc c|>', classes='bread-sep'),
             self.address_bar,
             classes='single-line'
         )
@@ -582,17 +591,15 @@ class DirectoryTreeApp(App):
     @on(CmdButton.Pressed, '.cmd')
     def handle_cmd_button_pressed(self, event: Button.Pressed):
 
-        if not self.selected_path:
-            return
-
-        if self.selected_path.parent == self.selected_path:  # or self.selected _path == self.
-            return
+        node = self.directory_tree.get_node_at_line(
+            self.directory_tree.cursor_line
+        )
 
         if self.cmd_input.disabled:
             self.notify('Wait for last command to finish.')
             return
 
-        path = self._format_path(self.selected_path)
+        path = self._format_path(node.data.path)
 
         if event.button.cmd != 'path':
             self.cmd_input.clear()
@@ -649,7 +656,22 @@ class DirectoryTreeApp(App):
 
     @on(Input.Submitted, '#search')
     async def search(self, event: Input.Submitted) -> None:
-        self.search_files_and_scroll(event.value)
+        if event.value and self.directory_tree.file_filter == event.value:
+            node = self.directory_tree.get_node_at_line(
+                self.directory_tree.cursor_line
+            )
+            self.directory_tree.select_node(node)
+
+        else:
+            self.search_files_and_scroll(event.value)
+
+    @on(Input.Changed, '#search')
+    async def search_on_type(self, event: Input.Submitted) -> None:
+        if self.search.has_focus:
+            self.directory_tree.file_filter = event.value
+            self.directory_tree.refresh_children()
+            self.directory_tree.refresh_searched()
+            self.directory_tree.scroll_next(0)
 
     def search_files_and_scroll(self, search_term: str, scroll_dir=1):
         if search_term:
@@ -659,8 +681,8 @@ class DirectoryTreeApp(App):
                 self.directory_tree.refresh_searched()
                 self.directory_tree.scroll_next(0)
 
-                num_found = len(self.directory_tree.found_node_idx)
-                self.log_output.write_line(f'Search {search_term} found {num_found}')
+                # num_found = len(self.directory_tree.found_node_idx)
+                # self.log_output.write_line(f'Search {search_term} found {num_found}')
 
             else:
                 if self.just_changed_dir:
@@ -671,7 +693,6 @@ class DirectoryTreeApp(App):
 
         else:
             self.directory_tree.file_filter = None
-            self.directory_tree.refresh_children()
             self.directory_tree.refresh_searched()
             self.directory_tree.focus()
 
