@@ -1,7 +1,7 @@
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, HorizontalScroll
-from textual.widgets import DirectoryTree, Static, TextArea, DataTable, Select, Button, Log, Input
+from textual.widgets import DirectoryTree, Static, TextArea, DataTable, Select, Button, Log, Input, Markdown
 
 from upath import UPath
 from pyarrow.parquet import ParquetFile
@@ -10,6 +10,19 @@ import csv
 from itertools import islice, chain
 from datetime import datetime
 import asyncio
+import json
+
+
+def md_lines(path: UPath):
+    with path.open() as f:
+        j = json.load(f)
+
+        for cell in j['cells']:
+
+            if cell['cell_type'] in {'code', 'markdown'}:
+                yield '[ ]:\n'
+                yield from cell['source']
+                yield '\n'
 
 
 class InputWithHistory(Input):
@@ -502,8 +515,13 @@ class DirectoryTreeApp(App):
         self.clear_previews()
 
         try:
+            if message.path.suffix == '.ipynb':
+                self.file_content.load_text(''.join(islice(
+                    md_lines(message.path),
+                    1000
+                )))
 
-            if message.path.suffix == '.csv':
+            elif message.path.suffix == '.csv':
 
                 with message.path.open('r') as f:
                     rows = csv.reader(f)
@@ -666,7 +684,7 @@ class DirectoryTreeApp(App):
             self.search_files_and_scroll(event.value)
 
     @on(Input.Changed, '#search')
-    async def search_on_type(self, event: Input.Submitted) -> None:
+    def search_on_type(self, event: Input.Submitted) -> None:
         if self.search.has_focus:
             self.directory_tree.file_filter = event.value
             self.directory_tree.refresh_children()
