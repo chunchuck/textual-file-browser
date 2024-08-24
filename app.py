@@ -13,7 +13,7 @@ import asyncio
 import json
 
 
-def md_lines(path: UPath):
+def ipynb_lines(path: UPath):
     with path.open() as f:
         j = json.load(f)
 
@@ -97,11 +97,15 @@ class InputSearch(Input):
 
 class UniversalDirectoryTree(DirectoryTree):
     PATH = UPath
-    not_found = Style(color='grey53')
+    BINDINGS = [('enter', 'cd'), ('space', 'cd')]
 
+    not_found = Style(color='grey53')
     file_filter = None
     found_node_idx: list = None
     found_node_cursor = 0
+
+    async def action_cd(self):
+        await self.app.action_cd()
 
     def render_label(
         self, node, base_style, style
@@ -295,6 +299,8 @@ class DirectoryTreeApp(App):
         )
         if node.data.path.is_dir():
             await self.cd(node.data.path)
+        else:
+            self.directory_tree.select_node(node)
 
     async def action_cd_parent(self):
         if self.directory_tree.root.data.path.parent != self.directory_tree.root.data.path:
@@ -459,7 +465,6 @@ class DirectoryTreeApp(App):
 
     @on(DirectoryTree.DirectorySelected)
     async def handle_dir_selected(self, message: DirectoryTree.DirectorySelected) -> None:
-
         self.clear_previews()
         if message.path.exists():
             self.selected_node = message.node
@@ -517,7 +522,7 @@ class DirectoryTreeApp(App):
         try:
             if message.path.suffix == '.ipynb':
                 self.file_content.load_text(''.join(islice(
-                    md_lines(message.path),
+                    ipynb_lines(message.path),
                     1000
                 )))
 
@@ -603,7 +608,6 @@ class DirectoryTreeApp(App):
         else:
             self.drive_select_first_load = False
 
-        self.just_changed_dir = True
         self.directory_tree.focus()
 
     @on(CmdButton.Pressed, '.cmd')
@@ -636,7 +640,7 @@ class DirectoryTreeApp(App):
         try:
             stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(), self.cmd_timeout)
             self.log_output.write_line(f'< {proc.returncode}\n')
-            self.log_output.write_lines (stdout_data.decode ().splitlines())
+            self.log_output.write_lines(stdout_data.decode ().splitlines())
 
         except asyncio.TimeoutError:
             proc.kill()
@@ -678,10 +682,23 @@ class DirectoryTreeApp(App):
             node = self.directory_tree.get_node_at_line(
                 self.directory_tree.cursor_line
             )
-            self.directory_tree.select_node(node)
+            if node.data.path.is_dir():
+                await self.cd(node.data.path)
+            else:
+                self.directory_tree.select_node(node)
 
         else:
             self.search_files_and_scroll(event.value)
+
+    # @on(DirectoryTree.NodeCollapsed)
+    # def togglec(self, event: DirectoryTree.NodeCollapsed):
+    #     self.notify('c')
+    #     self.just_changed_dir = True
+    #
+    # @on(DirectoryTree.NodeExpanded)
+    # def togglee(self, event: DirectoryTree.NodeExpanded):
+    #     self.notify('e')
+    #     self.just_changed_dir = True
 
     @on(Input.Changed, '#search')
     def search_on_type(self, event: Input.Submitted) -> None:
