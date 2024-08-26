@@ -132,7 +132,7 @@ class UniversalDirectoryTree(DirectoryTree):
             self.found_node_idx = [
                 i
                 for i, line in enumerate(self._tree_lines)
-                if self.file_filter in line.node.data.path.parts[-1]:
+                if self.file_filter in line.node.data.path.parts[-1]
             ]
 
         if self.found_node_cursor > len(self.found_node_idx):
@@ -403,7 +403,6 @@ class DirectoryTreeApp(App):
                 allow_blank=False,
                 value=self.drive
             ),
-            Static(' <|esc c|>', classes='bread-sep'),
             self.address_bar,
             classes='single-line'
         )

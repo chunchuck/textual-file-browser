@@ -26,7 +26,6 @@ python app.py
 (f1) Paste highlighted folder/file path to command
 (/) Start searching, (escape) Stop searching, (up)(down) next / previous match
 
-(c) go into highlighted folder
 (escape) go out to parent folder
 
 (b) File browser window focus
