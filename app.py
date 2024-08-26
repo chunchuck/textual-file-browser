@@ -129,9 +129,11 @@ class UniversalDirectoryTree(DirectoryTree):
     def refresh_searched(self):
         self.found_node_idx = []
         if self.file_filter:
-            for i, line in enumerate(self._tree_lines):
+            self.found_node_idx = [
+                i
+                for i, line in enumerate(self._tree_lines)
                 if self.file_filter in line.node.data.path.parts[-1]:
-                    self.found_node_idx.append(i)
+            ]
 
         if self.found_node_cursor > len(self.found_node_idx):
             self.found_node_cursor = 0
