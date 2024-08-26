@@ -105,7 +105,13 @@ class UniversalDirectoryTree(DirectoryTree):
     found_node_cursor = 0
 
     async def action_cd(self):
-        await self.app.action_cd()
+        node = self.get_node_at_line(
+            self.cursor_line
+        )
+        if node.data.path.is_dir():
+            await self.app.cd(node.data.path)
+        else:
+            self.select_node(node)
 
     def render_label(
         self, node, base_style, style
@@ -201,7 +207,6 @@ class DirectoryTreeApp(App):
         (':', 'focus("cmd-input")'),
         ('/', 'focus("search")'),
 
-        ('c', 'cd'),
         ('escape', 'cd_parent'),
 
         ('b', 'focus("browser")'),
@@ -292,15 +297,6 @@ class DirectoryTreeApp(App):
     # Actions =======================================================
     def action_show_overlay(self):
         self.query_one('#drive-select').action_show_overlay()
-
-    async def action_cd(self):
-        node = self.directory_tree.get_node_at_line(
-            self.directory_tree.cursor_line
-        )
-        if node.data.path.is_dir():
-            await self.cd(node.data.path)
-        else:
-            self.directory_tree.select_node(node)
 
     async def action_cd_parent(self):
         if self.directory_tree.root.data.path.parent != self.directory_tree.root.data.path:
